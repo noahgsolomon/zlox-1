@@ -27,7 +27,8 @@ pub const TokenType = enum {
     // Literals.
     IDENTIFIER,
     STRING,
-    NUMBER,
+    INT,
+    FLOAT,
 
     // Keywords.
     AND,
@@ -62,3 +63,26 @@ pub const Token = struct {
         std.debug.print("{any} {s} {any}", .{ self.type, self.lexeme, self.literal });
     }
 };
+
+const KeywordMap = std.StringHashMap(TokenType);
+
+pub fn initKeywords(allocator: std.mem.Allocator) KeywordMap {
+    var keywords = KeywordMap.init(allocator);
+    keywords.put("and", TokenType.AND) catch unreachable;
+    keywords.put("class", TokenType.CLASS) catch unreachable;
+    keywords.put("else", TokenType.ELSE) catch unreachable;
+    keywords.put("false", TokenType.FALSE) catch unreachable;
+    keywords.put("for", TokenType.FOR) catch unreachable;
+    keywords.put("fun", TokenType.FUN) catch unreachable;
+    keywords.put("if", TokenType.IF) catch unreachable;
+    keywords.put("nil", TokenType.NIL) catch unreachable;
+    keywords.put("or", TokenType.OR) catch unreachable;
+    keywords.put("print", TokenType.PRINT) catch unreachable;
+    keywords.put("return", TokenType.RETURN) catch unreachable;
+    keywords.put("super", TokenType.SUPER) catch unreachable;
+    keywords.put("this", TokenType.THIS) catch unreachable;
+    keywords.put("true", TokenType.TRUE) catch unreachable;
+    keywords.put("var", TokenType.VAR) catch unreachable;
+    keywords.put("while", TokenType.WHILE) catch unreachable;
+    return keywords;
+}
