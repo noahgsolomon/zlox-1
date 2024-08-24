@@ -2,8 +2,6 @@ const std = @import("std");
 const print = std.debug.print;
 const ZLox = @import("zlox.zig").ZLox;
 
-var hadError = false;
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{ .thread_safe = true }){};
     const alloc = gpa.allocator();
