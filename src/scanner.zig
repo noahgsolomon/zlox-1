@@ -23,6 +23,7 @@ pub const Scanner = struct {
 
     pub fn deinit(self: *Scanner) void {
         self.tokens.deinit();
+        self.keyword_map.deinit();
     }
 
     pub fn scanTokens(self: *Scanner) !std.ArrayList(Token) {
