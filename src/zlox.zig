@@ -1,9 +1,10 @@
 const std = @import("std");
 const Scanner = @import("scanner.zig").Scanner;
 const print = std.debug.print;
+const Token = @import("token.zig").Token;
 
 pub const ZLox = struct {
-    pub fn runFile(path: []const u8, alloc: std.mem.Allocator) !void {
+    pub fn scanFile(path: []const u8, alloc: std.mem.Allocator) !void {
         const file = std.fs.cwd().openFile(path, .{}) catch |err| {
             std.log.err("Failed to open file: {s}\n{s}", .{ path, @errorName(err) });
             return;
@@ -16,34 +17,41 @@ pub const ZLox = struct {
         };
         defer alloc.free(source);
 
-        try run(source, alloc);
+        var scanner = try Scanner.init(alloc);
+        defer scanner.deinit();
+
+        try scan(source, &scanner);
     }
 
-    pub fn runPrompt(alloc: std.mem.Allocator) !void {
+    pub fn scanPrompt(
+        alloc: std.mem.Allocator,
+    ) !void {
         const in = std.io.getStdIn().reader();
         const out = std.io.getStdOut().writer();
-        while (true) {
-            try out.print("> ", .{});
-            const result = try in.readUntilDelimiterAlloc(alloc, '\n', std.math.maxInt(usize));
 
-            if (result.len > 0 and !std.ascii.eqlIgnoreCase(result, "\n")) {
-                try run(result, alloc);
+        while (true) {
+            var scanner = try Scanner.init(alloc);
+            defer scanner.deinit();
+            try out.print("> ", .{});
+            const source = try in.readUntilDelimiterAlloc(alloc, '\n', std.math.maxInt(usize));
+
+            if (source.len > 0 and !std.ascii.eqlIgnoreCase(source, "\n")) {
+                try scan(source, &scanner);
                 try out.print("\n", .{});
             }
         }
     }
 
-    pub fn run(source: []const u8, alloc: std.mem.Allocator) !void {
-        var scanner = try Scanner.init(source, alloc);
-        defer scanner.deinit();
+    pub fn scan(source: []const u8, scanner: *Scanner) !void {
+        scanner.source = source;
         const tokens = try scanner.scanTokens();
+        var line: usize = 1;
         for (tokens.items) |token| {
-            switch (token.literal) {
-                .void => print("{s} ", .{@tagName(token.type)}),
-                .int => |value| print("({s}: {d}) ", .{ @tagName(token.type), value }),
-                .float => |value| print("({s}: {d:.2}) ", .{ @tagName(token.type), value }),
-                .str => |value| print("({s}: {s}) ", .{ @tagName(token.type), value }),
+            while (line < token.line) {
+                line += 1;
+                print("\n", .{});
             }
+            token.print();
         }
     }
 

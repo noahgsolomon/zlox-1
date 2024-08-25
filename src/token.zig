@@ -60,14 +60,17 @@ pub const Token = struct {
     line: usize,
 
     pub fn print(self: Token) void {
-        std.debug.print("{any} {s} {any}", .{ self.type, self.lexeme, self.literal });
+        switch (self.literal) {
+            .void => std.debug.print("{s} ", .{@tagName(self.type)}),
+            .int => |value| std.debug.print("({s}: {d}) ", .{ @tagName(self.type), value }),
+            .float => |value| std.debug.print("({s}: {d:.2}) ", .{ @tagName(self.type), value }),
+            .str => |value| std.debug.print("({s}: {s}) ", .{ @tagName(self.type), value }),
+        }
     }
 };
 
-const KeywordMap = std.StringHashMap(TokenType);
-
-pub fn initKeywords(allocator: std.mem.Allocator) KeywordMap {
-    var keywords = KeywordMap.init(allocator);
+pub fn initKeywords(allocator: std.mem.Allocator) std.StringHashMap(TokenType) {
+    var keywords = std.StringHashMap(TokenType).init(allocator);
     keywords.put("and", TokenType.AND) catch unreachable;
     keywords.put("class", TokenType.CLASS) catch unreachable;
     keywords.put("else", TokenType.ELSE) catch unreachable;

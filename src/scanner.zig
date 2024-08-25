@@ -17,8 +17,8 @@ pub const Scanner = struct {
 
     keyword_map: std.StringHashMap(TokenType),
 
-    pub fn init(source: []const u8, alloc: std.mem.Allocator) !Scanner {
-        return Scanner{ .source = source, .start = 0, .current = 0, .line = 1, .alloc = alloc, .tokens = std.ArrayList(Token).init(alloc), .keyword_map = token.initKeywords(alloc) };
+    pub fn init(alloc: std.mem.Allocator) !Scanner {
+        return Scanner{ .source = "", .start = 0, .current = 0, .line = 1, .alloc = alloc, .tokens = std.ArrayList(Token).init(alloc), .keyword_map = token.initKeywords(alloc) };
     }
 
     pub fn deinit(self: *Scanner) void {
@@ -91,16 +91,17 @@ pub const Scanner = struct {
             if (self.peek() == '\n') {
                 ZLox.scanError(self.line, "Invalid, cannot have multi-line string literals");
                 self.line += 1;
+                return;
             }
             _ = self.advance();
+        }
 
-            if (self.isAtEnd()) {
-                ZLox.scanError(self.line, "Unterminated string.");
-            }
+        if (self.isAtEnd()) {
+            ZLox.scanError(self.line, "Unterminated string.");
+            return;
         }
 
         _ = self.advance();
-
         const value = self.source[self.start + 1 .. self.current - 1];
         try self.addToken(TokenType.STRING, Literal{ .str = value });
     }

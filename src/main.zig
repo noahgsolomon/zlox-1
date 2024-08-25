@@ -15,9 +15,9 @@ pub fn main() !void {
     defer std.process.argsFree(alloc, args);
 
     if (args.len == 1) {
-        try ZLox.runPrompt(alloc);
+        try ZLox.scanPrompt(alloc);
     } else if (args.len == 2) {
-        try ZLox.runFile(args[1], alloc);
+        try ZLox.scanFile(args[1], alloc);
     } else {
         std.log.err("Cannot input more than 1 arg. Use examples: zlox, zlox hello.zlox", .{});
         return;

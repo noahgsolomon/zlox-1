@@ -1,3 +1,9 @@
-// this is a comment
-(( )){} // grouping stuff
-!*+-/=<> <= == // operators
+fun addPair(a, b) {
+  return a + b;
+}
+
+fun identity(a) {
+  return a;
+}
+
+print identity(addPair)(1, 2); // Prints "3".
