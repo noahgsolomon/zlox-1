@@ -2,6 +2,7 @@ const std = @import("std");
 const Scanner = @import("scanner.zig").Scanner;
 const print = std.debug.print;
 const Token = @import("token.zig").Token;
+const Parser = @import("parser.zig").Parser;
 
 pub const ZLox = struct {
     pub fn scanFile(path: []const u8, alloc: std.mem.Allocator) !void {
@@ -20,7 +21,10 @@ pub const ZLox = struct {
         var scanner = try Scanner.init(alloc);
         defer scanner.deinit();
 
-        try scan(source, &scanner);
+        const tokens = scan(source, &scanner);
+        var parser = Parser.init(tokens.items, alloc);
+        defer parser.deinit();
+        _ = parser.parse();
     }
 
     pub fn scanPrompt(
@@ -36,15 +40,18 @@ pub const ZLox = struct {
             const source = try in.readUntilDelimiterAlloc(alloc, '\n', std.math.maxInt(usize));
 
             if (source.len > 0 and !std.ascii.eqlIgnoreCase(source, "\n")) {
-                try scan(source, &scanner);
+                const tokens = scan(source, &scanner);
+                var parser = Parser.init(tokens.items, alloc);
+                defer parser.deinit();
+                _ = parser.parse();
                 try out.print("\n", .{});
             }
         }
     }
 
-    pub fn scan(source: []const u8, scanner: *Scanner) !void {
+    pub fn scan(source: []const u8, scanner: *Scanner) std.ArrayList(Token) {
         scanner.source = source;
-        const tokens = try scanner.scanTokens();
+        const tokens = scanner.scanTokens() catch unreachable;
         var line: usize = 1;
         for (tokens.items) |token| {
             while (line < token.line) {
@@ -53,6 +60,7 @@ pub const ZLox = struct {
             }
             token.print();
         }
+        return tokens;
     }
 
     pub fn scanError(line: usize, message: []const u8) void {

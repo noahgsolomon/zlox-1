@@ -28,6 +28,7 @@ pub const Scanner = struct {
 
     pub fn scanTokens(self: *Scanner) !std.ArrayList(Token) {
         while (!self.isAtEnd()) {
+            // We are at the beginning of the next lexeme
             self.start = self.current;
             try self.scanToken();
         }
@@ -37,6 +38,7 @@ pub const Scanner = struct {
     pub fn scanToken(self: *Scanner) !void {
         const c = self.advance();
         switch (c) {
+            // Single-character tokens
             '(' => try self.addToken(TokenType.LEFT_PAREN, Literal{ .void = {} }),
             ')' => try self.addToken(TokenType.RIGHT_PAREN, Literal{ .void = {} }),
             '{' => try self.addToken(TokenType.LEFT_BRACE, Literal{ .void = {} }),
@@ -47,23 +49,29 @@ pub const Scanner = struct {
             '+' => try self.addToken(TokenType.PLUS, Literal{ .void = {} }),
             ';' => try self.addToken(TokenType.SEMICOLON, Literal{ .void = {} }),
             '*' => try self.addToken(TokenType.STAR, Literal{ .void = {} }),
+            // One or two character tokens
             '!' => try self.addToken(if (self.match('=')) TokenType.BANG_EQUAL else TokenType.BANG, Literal{ .void = {} }),
             '=' => try self.addToken(if (self.match('=')) TokenType.EQUAL_EQUAL else TokenType.EQUAL, Literal{ .void = {} }),
             '<' => try self.addToken(if (self.match('=')) TokenType.LESS_EQUAL else TokenType.LESS, Literal{ .void = {} }),
             '>' => try self.addToken(if (self.match('=')) TokenType.GREATER_EQUAL else TokenType.GREATER, Literal{ .void = {} }),
             '/' => {
                 if (self.match('/')) {
+                    // A comment goes until the end of the line
                     while (self.peek() != '\n' and !self.isAtEnd()) _ = self.advance();
                 } else {
                     try self.addToken(TokenType.SLASH, Literal{ .void = {} });
                 }
             },
+            // Whitespace characters
             ' ' => {},
             '\r' => {},
             '\t' => {},
             '\n' => self.line += 1,
+            // String literals
             '"' => try self.string(),
+            // Number literals
             '0'...'9' => try self.number(),
+            // Identifiers and keywords
             'A'...'Z', 'a'...'z', '_' => try self.identifier(),
             else => {
                 ZLox.scanError(self.line, "Unexpected character.");
@@ -76,6 +84,7 @@ pub const Scanner = struct {
             _ = self.advance();
         }
 
+        // Check if the identifier is a reserved keyword
         var token_type = TokenType.IDENTIFIER;
         const keyword = self.keyword_map.get(self.source[self.start..self.current]);
 
