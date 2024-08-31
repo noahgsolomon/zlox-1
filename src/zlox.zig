@@ -53,6 +53,7 @@ pub const ZLox = struct {
         scanner.source = source;
         const tokens = scanner.scanTokens() catch unreachable;
         var line: usize = 1;
+        print("-----TOKENS------\n", .{});
         for (tokens.items) |token| {
             while (line < token.line) {
                 line += 1;
@@ -60,6 +61,7 @@ pub const ZLox = struct {
             }
             token.print();
         }
+        print("\n-----------------\n", .{});
         return tokens;
     }
 

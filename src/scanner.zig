@@ -32,6 +32,7 @@ pub const Scanner = struct {
             self.start = self.current;
             try self.scanToken();
         }
+        try self.addToken(TokenType.EOF, Literal{ .void = {} });
         return self.tokens;
     }
 
