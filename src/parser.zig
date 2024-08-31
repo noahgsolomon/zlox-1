@@ -23,21 +23,65 @@ pub const Parser = struct {
 
     pub fn deinit(self: *Parser) void {
         if (self.expr) |expr| {
-            switch (expr) {
-                .binary => |binary| {
-                    std.debug.print("expr: {any}\n{any}", .{ binary.left.*.literal.int, binary.right.*.literal.int });
-                },
-                .literal => |literal| {
-                    std.debug.print("expr: {any}\n", .{literal});
-                },
-                .unary => |unaryVal| {
-                    std.debug.print("expr: {any}\n", .{unaryVal});
-                },
-                .grouping => |grouping| {
-                    std.debug.print("expr: {any}\n", .{grouping});
-                },
-            }
+            self.printExpr(expr, 0);
             self.freeExpr(expr);
+        }
+    }
+
+    fn printExpr(self: *Parser, expr: Expr, indent: usize) void {
+        const indentStr = "    ";
+        var i: usize = 0;
+        while (i < indent) : (i += 1) {
+            std.debug.print("{s}", .{indentStr});
+        }
+        switch (expr) {
+            .binary => |val| {
+                std.debug.print("Binary\n", .{});
+                i = 0;
+                while (i < indent + 1) : (i += 1) {
+                    std.debug.print("{s}", .{indentStr});
+                }
+                std.debug.print("Operator: {s}\n", .{@tagName(val.operator.type)});
+                i = 0;
+                while (i < indent + 1) : (i += 1) {
+                    std.debug.print("{s}", .{indentStr});
+                }
+                std.debug.print("Left:\n", .{});
+                self.printExpr(val.left.*, indent + 2);
+                i = 0;
+                while (i < indent + 1) : (i += 1) {
+                    std.debug.print("{s}", .{indentStr});
+                }
+                std.debug.print("Right:\n", .{});
+                self.printExpr(val.right.*, indent + 2);
+            },
+            .unary => |val| {
+                std.debug.print("Unary\n", .{});
+                i = 0;
+                while (i < indent + 1) : (i += 1) {
+                    std.debug.print("{s}", .{indentStr});
+                }
+                std.debug.print("Operator: {s}\n", .{@tagName(val.operator.type)});
+                i = 0;
+                while (i < indent + 1) : (i += 1) {
+                    std.debug.print("{s}", .{indentStr});
+                }
+                std.debug.print("Right:\n", .{});
+                self.printExpr(val.right.*, indent + 2);
+            },
+            .literal => |literalVal| {
+                std.debug.print("Literal: ", .{});
+                switch (literalVal) {
+                    .int => |val| std.debug.print("{d}\n", .{val}),
+                    .float => |val| std.debug.print("{d}\n", .{val}),
+                    .str => |val| std.debug.print("\"{s}\"\n", .{val}),
+                    .void => std.debug.print("void\n", .{}),
+                }
+            },
+            .grouping => |val| {
+                std.debug.print("Grouping\n", .{});
+                self.printExpr(val.expression.*, indent + 1);
+            },
         }
     }
 
