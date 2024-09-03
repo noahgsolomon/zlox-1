@@ -24,7 +24,7 @@ pub const Parser = struct {
     pub fn deinit(self: *Parser) void {
         if (self.expr) |expr| {
             self.printExpr(expr, 0);
-            self.freeExpr(expr);
+            // self.freeExpr(expr);
         }
     }
 
@@ -92,23 +92,34 @@ pub const Parser = struct {
     }
 
     fn freeExpr(self: *Parser, expr: Expr) void {
+        std.debug.print("Freeing expression: {s}\n", .{@tagName(expr)});
         switch (expr) {
             .binary => |val| {
+                std.debug.print("  Freeing binary expression\n", .{});
                 self.freeExpr(val.left.*);
                 self.freeExpr(val.right.*);
+                std.debug.print("  Destroying left node\n", .{});
                 self.alloc.destroy(val.left);
+                std.debug.print("  Destroying right node\n", .{});
                 self.alloc.destroy(val.right);
             },
             .unary => |val| {
+                std.debug.print("  Freeing unary expression\n", .{});
                 self.freeExpr(val.right.*);
+                std.debug.print("  Destroying right node\n", .{});
                 self.alloc.destroy(val.right);
             },
-            .literal => {},
+            .literal => {
+                std.debug.print("  Freeing literal\n", .{});
+            },
             .grouping => |val| {
+                std.debug.print("  Freeing grouping expression\n", .{});
                 self.freeExpr(val.expression.*);
+                std.debug.print("  Destroying expression node\n", .{});
                 self.alloc.destroy(val.expression);
             },
         }
+        std.debug.print("Finished freeing expression\n", .{});
     }
 
     fn isAtEnd(self: *Parser) bool {
@@ -135,9 +146,11 @@ pub const Parser = struct {
 
         while (self.match(tokenTypes)) {
             const operator = self.previous();
+            const left = self.alloc.create(Expr) catch unreachable;
+            left.* = expr;
             const right = self.alloc.create(Expr) catch unreachable;
             right.* = nextMethod(self);
-            expr = Expr{ .binary = .{ .left = &expr, .operator = operator, .right = right } };
+            expr = Expr{ .binary = .{ .left = left, .operator = operator, .right = right } };
         }
 
         return expr;
@@ -187,9 +200,10 @@ pub const Parser = struct {
 
         if (self.match(&token_types)) {
             const operator = self.previous();
-            const right = self.alloc.create(Expr) catch unreachable;
-            right.* = self.unary();
-            return Expr{ .unary = .{ .operator = operator, .right = right } };
+            var right = self.unary();
+            const expr = self.alloc.create(Expr) catch unreachable;
+            expr.* = Expr{ .unary = .{ .operator = operator, .right = &right } };
+            return expr.*;
         }
 
         return self.primary() catch unreachable;
@@ -211,12 +225,10 @@ pub const Parser = struct {
         }
 
         if (self.match(&[_]TokenType{TokenType.LEFT_PAREN})) {
-            const expr = self.alloc.create(Expr) catch unreachable;
-            expr.* = self.expression();
-            if (!self.match(&[_]TokenType{TokenType.RIGHT_PAREN})) {
-                std.debug.print("bro u forgot a ')' dumby. line: {d}", .{self.peek().line});
-            }
-            return Expr{ .grouping = .{ .expression = expr } };
+            var expr = self.expression();
+            const grouping = self.alloc.create(Expr) catch unreachable;
+            grouping.* = Expr{ .grouping = .{ .expression = &expr } };
+            return grouping.*;
         }
 
         std.debug.print("Unexpected token: {any} at line {d}\n", .{ self.peek().type, self.peek().line });
