@@ -3,9 +3,16 @@ const Scanner = @import("scanner.zig").Scanner;
 const print = std.debug.print;
 const Token = @import("token.zig").Token;
 const Parser = @import("parser.zig").Parser;
+const Interpreter = @import("interpreter.zig");
 
 pub const ZLox = struct {
-    pub fn scanFile(path: []const u8, alloc: std.mem.Allocator) !void {
+    debug: bool,
+
+    pub fn init(debug: bool) ZLox {
+        return ZLox{ .debug = debug };
+    }
+
+    pub fn scanFile(self: *ZLox, path: []const u8, alloc: std.mem.Allocator) !void {
         const file = std.fs.cwd().openFile(path, .{}) catch |err| {
             std.log.err("Failed to open file: {s}\n{s}", .{ path, @errorName(err) });
             return;
@@ -22,12 +29,13 @@ pub const ZLox = struct {
         defer scanner.deinit();
 
         const tokens = scan(source, &scanner);
-        var parser = Parser.init(tokens.items, alloc);
+        var parser = Parser.init(tokens.items, alloc, self.debug);
         defer parser.deinit();
         _ = parser.parse();
     }
 
     pub fn scanPrompt(
+        self: *ZLox,
         alloc: std.mem.Allocator,
     ) !void {
         const in = std.io.getStdIn().reader();
@@ -38,12 +46,12 @@ pub const ZLox = struct {
             defer scanner.deinit();
             try out.print("> ", .{});
             const source = try in.readUntilDelimiterAlloc(alloc, '\n', std.math.maxInt(usize));
-
             if (source.len > 0 and !std.ascii.eqlIgnoreCase(source, "\n")) {
                 const tokens = scan(source, &scanner);
-                var parser = Parser.init(tokens.items, alloc);
+                var parser = Parser.init(tokens.items, alloc, self.debug);
                 defer parser.deinit();
                 _ = parser.parse();
+                Interpreter.interpret(parser.expr.?, alloc);
                 try out.print("\n", .{});
             }
         }

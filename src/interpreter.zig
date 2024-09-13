@@ -32,12 +32,28 @@ pub const Value = union(enum) {
 
 pub const RuntimeError = error{ TypeError, DivisionByZero, OutOfMemory };
 
-// fn runtimeError(err: RuntimeError, token: Token) void {
-//     switch (err) {
-//         .TypeError => std.debug.print("TypeError: operands must be numbers [line {d}], ^{s}", .{}),
-//         .DivisionByZero => std.debug.print("DivisionByZero: division by zero [line {d}], ^{s}", .{}),
-//     }
-// }
+pub const RuntimeErrorEnum = enum {
+    TypeError,
+    DivisionByZero,
+    OutOfMemory,
+};
+
+fn runtimeError(err: RuntimeErrorEnum, token: Token) RuntimeError!Value {
+    switch (err) {
+        .TypeError => {
+            std.debug.print("TypeError: operands must be numbers [line {d}], ^{s}", .{ token.line, token.lexeme });
+            return RuntimeError.TypeError;
+        },
+        .DivisionByZero => {
+            std.debug.print("DivisionByZero: division by zero [line {d}], ^{s}", .{ token.line, token.lexeme });
+            return RuntimeError.DivisionByZero;
+        },
+        .OutOfMemory => {
+            std.debug.print("OutOfMemory: no more memory [line {d}], ^{s}", .{ token.line, token.lexeme });
+            return RuntimeError.OutOfMemory;
+        },
+    }
+}
 
 pub fn interpret(expr: Expr, alloc: std.mem.Allocator) void {
     const value = evaluate(expr, alloc) catch return;
@@ -94,20 +110,23 @@ fn evaluateBinary(binary: Binary, alloc: std.mem.Allocator) RuntimeError!Value {
                 .int => |l| switch (right) {
                     .int => |r| return Value{ .int = l + r },
                     .float => |r| return Value{ .float = @as(f64, @floatFromInt(l)) + r },
-                    else => return RuntimeError.TypeError,
+                    else => return try runtimeError(
+                        RuntimeErrorEnum.TypeError,
+                        binary.operator,
+                    ),
                 },
                 .float => |l| switch (right) {
                     .int => |r| return Value{ .float = l + @as(f64, @floatFromInt(r)) },
                     .float => |r| return Value{ .float = l + r },
-                    else => return RuntimeError.TypeError,
+                    else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
                 },
                 .str => |l| if (right == .str) {
                     const result = std.fmt.allocPrint(alloc, "{s}{s}", .{ l, right.str }) catch |err| switch (err) {
-                        error.OutOfMemory => return RuntimeError.OutOfMemory,
+                        error.OutOfMemory => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
                     };
                     return Value{ .str = result };
-                } else return RuntimeError.TypeError,
-                else => return RuntimeError.TypeError,
+                } else return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
+                else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
             }
         },
         .MINUS => {
@@ -115,14 +134,14 @@ fn evaluateBinary(binary: Binary, alloc: std.mem.Allocator) RuntimeError!Value {
                 .int => |l| switch (right) {
                     .int => |r| return Value{ .int = l - r },
                     .float => |r| return Value{ .float = @as(f64, @floatFromInt(l)) - r },
-                    else => return RuntimeError.TypeError,
+                    else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
                 },
                 .float => |l| switch (right) {
                     .int => |r| return Value{ .float = l - @as(f64, @floatFromInt(r)) },
                     .float => |r| return Value{ .float = l - r },
-                    else => return RuntimeError.TypeError,
+                    else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
                 },
-                else => return RuntimeError.TypeError,
+                else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
             }
         },
         .STAR => {
@@ -130,44 +149,44 @@ fn evaluateBinary(binary: Binary, alloc: std.mem.Allocator) RuntimeError!Value {
                 .int => |l| switch (right) {
                     .int => |r| return Value{ .int = l * r },
                     .float => |r| return Value{ .float = @as(f64, @floatFromInt(l)) * r },
-                    else => return RuntimeError.TypeError,
+                    else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
                 },
                 .float => |l| switch (right) {
                     .int => |r| return Value{ .float = l * @as(f64, @floatFromInt(r)) },
                     .float => |r| return Value{ .float = l * r },
-                    else => return RuntimeError.TypeError,
+                    else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
                 },
-                else => return RuntimeError.TypeError,
+                else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
             }
         },
         .SLASH => {
             switch (left) {
                 .int => |l| switch (right) {
                     .int => |r| {
-                        if (r == 0) return RuntimeError.DivisionByZero;
+                        if (r == 0) return try runtimeError(RuntimeErrorEnum.DivisionByZero, binary.operator);
                         return Value{ .float = @as(f64, @floatFromInt(l)) / @as(f64, @floatFromInt(r)) };
                     },
                     .float => |r| {
-                        if (r == 0.0) return RuntimeError.DivisionByZero;
+                        if (r == 0.0) return try runtimeError(RuntimeErrorEnum.DivisionByZero, binary.operator);
                         return Value{ .float = @as(f64, @floatFromInt(l)) / r };
                     },
-                    else => return RuntimeError.TypeError,
+                    else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
                 },
                 .float => |l| switch (right) {
                     .int => |r| {
-                        if (r == 0) return RuntimeError.DivisionByZero;
+                        if (r == 0) return try runtimeError(RuntimeErrorEnum.DivisionByZero, binary.operator);
                         return Value{ .float = l / @as(f64, @floatFromInt(r)) };
                     },
                     .float => |r| {
-                        if (r == 0.0) return RuntimeError.DivisionByZero;
+                        if (r == 0.0) return try runtimeError(RuntimeErrorEnum.DivisionByZero, binary.operator);
                         return Value{ .float = l / r };
                     },
-                    else => return RuntimeError.TypeError,
+                    else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
                 },
-                else => return RuntimeError.TypeError,
+                else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
             }
         },
-        else => unreachable,
+        else => return try runtimeError(RuntimeErrorEnum.TypeError, binary.operator),
     }
 }
 

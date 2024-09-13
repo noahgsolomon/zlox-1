@@ -12,13 +12,14 @@ pub const Grouping = struct { expression: *Expr };
 pub const Expr = union(enum) { binary: Binary, unary: Unary, literal: Literal, grouping: Grouping };
 
 pub const Parser = struct {
+    debug: bool,
     tokens: []const Token,
     current: usize,
     alloc: std.mem.Allocator,
     expr: ?Expr = null,
 
-    pub fn init(tokens: []const Token, alloc: std.mem.Allocator) Parser {
-        return Parser{ .tokens = tokens, .current = 0, .alloc = alloc };
+    pub fn init(tokens: []const Token, alloc: std.mem.Allocator, debug: bool) Parser {
+        return Parser{ .tokens = tokens, .current = 0, .alloc = alloc, .debug = debug };
     }
 
     pub fn deinit(self: *Parser) void {
@@ -85,12 +86,6 @@ pub const Parser = struct {
         }
     }
 
-    pub fn parse(self: *Parser) Expr {
-        const expr = self.expression();
-        self.expr = expr;
-        return expr;
-    }
-
     fn freeExpr(self: *Parser, expr: Expr) void {
         std.debug.print("Freeing expression: {s}\n", .{@tagName(expr)});
         switch (expr) {
@@ -120,6 +115,14 @@ pub const Parser = struct {
             },
         }
         std.debug.print("Finished freeing expression\n", .{});
+    }
+
+    pub fn parse(self: *Parser) Expr {
+        if (self.debug) std.debug.print("Starting parsing\n", .{});
+        const expr = self.expression();
+        self.expr = expr;
+        if (self.debug) std.debug.print("Finished parsing\n", .{});
+        return expr;
     }
 
     fn isAtEnd(self: *Parser) bool {
@@ -172,30 +175,36 @@ pub const Parser = struct {
     }
 
     fn expression(self: *Parser) Expr {
+        if (self.debug) std.debug.print("Parsing expression\n", .{});
         return self.equality();
     }
 
     fn equality(self: *Parser) Expr {
+        if (self.debug) std.debug.print("Parsing equality\n", .{});
         const token_types = comptime [_]TokenType{ TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL };
         return self.parseBinaryExpr(comparison, &token_types);
     }
 
     fn comparison(self: *Parser) Expr {
+        if (self.debug) std.debug.print("Parsing comparison\n", .{});
         const token_types = comptime [_]TokenType{ TokenType.LESS, TokenType.LESS_EQUAL, TokenType.GREATER, TokenType.GREATER_EQUAL };
         return self.parseBinaryExpr(term, &token_types);
     }
 
     fn term(self: *Parser) Expr {
+        if (self.debug) std.debug.print("Parsing term\n", .{});
         const token_types = comptime [_]TokenType{ TokenType.MINUS, TokenType.PLUS };
         return self.parseBinaryExpr(factor, &token_types);
     }
 
     fn factor(self: *Parser) Expr {
+        if (self.debug) std.debug.print("Parsing factor\n", .{});
         const token_types = comptime [_]TokenType{ TokenType.SLASH, TokenType.STAR };
         return self.parseBinaryExpr(unary, &token_types);
     }
 
     fn unary(self: *Parser) Expr {
+        if (self.debug) std.debug.print("Parsing unary\n", .{});
         const token_types = comptime [_]TokenType{ TokenType.MINUS, TokenType.BANG };
 
         if (self.match(&token_types)) {
@@ -203,6 +212,7 @@ pub const Parser = struct {
             var right = self.unary();
             const expr = self.alloc.create(Expr) catch unreachable;
             expr.* = Expr{ .unary = .{ .operator = operator, .right = &right } };
+            if (self.debug) std.debug.print("Created unary expression\n", .{});
             return expr.*;
         }
 
@@ -210,31 +220,40 @@ pub const Parser = struct {
     }
 
     fn primary(self: *Parser) !Expr {
+        if (self.debug) std.debug.print("Parsing primary\n", .{});
         if (self.match(&[_]TokenType{TokenType.TRUE})) {
+            if (self.debug) std.debug.print("Parsed TRUE literal\n", .{});
             return Expr{ .literal = Literal{ .str = "true" } };
         }
         if (self.match(&[_]TokenType{TokenType.FALSE})) {
+            if (self.debug) std.debug.print("Parsed FALSE literal\n", .{});
             return Expr{ .literal = Literal{ .str = "false" } };
         }
         if (self.match(&[_]TokenType{TokenType.NIL})) {
+            if (self.debug) std.debug.print("Parsed NIL literal\n", .{});
             return Expr{ .literal = Literal{ .str = "nil" } };
         }
 
         if (self.match(&[_]TokenType{ TokenType.STRING, TokenType.INT, TokenType.FLOAT })) {
+            if (self.debug) std.debug.print("Parsed literal: {any}\n", .{self.previous().literal});
             return Expr{ .literal = self.previous().literal };
         }
 
         if (self.match(&[_]TokenType{TokenType.LEFT_PAREN})) {
+            if (self.debug) std.debug.print("Parsing grouping\n", .{});
             var expr = self.expression();
             const grouping = self.alloc.create(Expr) catch unreachable;
             grouping.* = Expr{ .grouping = .{ .expression = &expr } };
+            if (self.debug) std.debug.print("Finished parsing grouping\n", .{});
             return grouping.*;
         }
 
-        std.debug.print("Unexpected token: {any} at line {d}\n", .{ self.peek().type, self.peek().line });
-        std.debug.print("Current parser state:\n", .{});
-        std.debug.print("  Current index: {d}\n", .{self.current});
-        std.debug.print("  Total tokens: {d}\n", .{self.tokens.len});
+        if (self.debug) {
+            std.debug.print("Unexpected token: {any} at line {d}\n", .{ self.peek().type, self.peek().line });
+            std.debug.print("Current parser state:\n", .{});
+            std.debug.print("  Current index: {d}\n", .{self.current});
+            std.debug.print("  Total tokens: {d}\n", .{self.tokens.len});
+        }
 
         return error.UnexpectedToken;
     }
