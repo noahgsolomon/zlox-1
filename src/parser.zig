@@ -144,6 +144,22 @@ pub const Parser = struct {
         return self.previous();
     }
 
+    fn consume(self: *Parser, token_type: TokenType, error_message: []const u8) !Token {
+        if (self.check(token_type)) {
+            return self.advance();
+        }
+
+        if (self.debug) {
+            std.debug.print("Error {s}: Expected {s} but found {s}\n", .{
+                error_message,
+                @tagName(token_type),
+                @tagName(self.peek().type),
+            });
+        }
+
+        return error.ParseError;
+    }
+
     fn parseBinaryExpr(self: *Parser, comptime nextMethod: fn (*Parser) Expr, comptime tokenTypes: []const TokenType) Expr {
         var expr = nextMethod(self);
 
@@ -209,16 +225,17 @@ pub const Parser = struct {
 
         if (self.match(&token_types)) {
             const operator = self.previous();
-            var right = self.unary();
+            if (self.debug) std.debug.print("Parsed unary operator: {s}\n", .{@tagName(operator.type)});
+            const right = self.unary();
             const expr = self.alloc.create(Expr) catch unreachable;
-            expr.* = Expr{ .unary = .{ .operator = operator, .right = &right } };
+            expr.* = Expr{ .unary = .{ .operator = operator, .right = self.alloc.create(Expr) catch unreachable } };
+            expr.*.unary.right.* = right;
             if (self.debug) std.debug.print("Created unary expression\n", .{});
             return expr.*;
         }
 
         return self.primary() catch unreachable;
     }
-
     fn primary(self: *Parser) !Expr {
         if (self.debug) std.debug.print("Parsing primary\n", .{});
         if (self.match(&[_]TokenType{TokenType.TRUE})) {
@@ -231,7 +248,7 @@ pub const Parser = struct {
         }
         if (self.match(&[_]TokenType{TokenType.NIL})) {
             if (self.debug) std.debug.print("Parsed NIL literal\n", .{});
-            return Expr{ .literal = Literal{ .str = "nil" } };
+            return Expr{ .literal = Literal{ .void = {} } };
         }
 
         if (self.match(&[_]TokenType{ TokenType.STRING, TokenType.INT, TokenType.FLOAT })) {
@@ -241,18 +258,17 @@ pub const Parser = struct {
 
         if (self.match(&[_]TokenType{TokenType.LEFT_PAREN})) {
             if (self.debug) std.debug.print("Parsing grouping\n", .{});
-            var expr = self.expression();
-            const grouping = self.alloc.create(Expr) catch unreachable;
-            grouping.* = Expr{ .grouping = .{ .expression = &expr } };
-            if (self.debug) std.debug.print("Finished parsing grouping\n", .{});
-            return grouping.*;
-        }
+            const expr = self.expression();
+            _ = try self.consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.");
 
-        if (self.debug) {
-            std.debug.print("Unexpected token: {any} at line {d}\n", .{ self.peek().type, self.peek().line });
-            std.debug.print("Current parser state:\n", .{});
-            std.debug.print("  Current index: {d}\n", .{self.current});
-            std.debug.print("  Total tokens: {d}\n", .{self.tokens.len});
+            const grouping = try self.alloc.create(Grouping);
+            grouping.* = .{
+                .expression = try self.alloc.create(Expr),
+            };
+            grouping.expression.* = expr;
+
+            if (self.debug) std.debug.print("Finished parsing grouping\n", .{});
+            return Expr{ .grouping = grouping.* };
         }
 
         return error.UnexpectedToken;
