@@ -2,6 +2,7 @@ const std = @import("std");
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
 const Literal = @import("token.zig").Literal;
+const Stmt = @import("interpreter.zig").Stmt;
 
 pub const Binary = struct { left: *Expr, right: *Expr, operator: Token };
 
@@ -9,7 +10,15 @@ pub const Unary = struct { right: *Expr, operator: Token };
 
 pub const Grouping = struct { expression: *Expr };
 
-pub const Expr = union(enum) { binary: Binary, unary: Unary, literal: Literal, grouping: Grouping };
+pub const Variable = struct { name: Token };
+
+pub const Expr = union(enum) {
+    binary: Binary,
+    unary: Unary,
+    literal: Literal,
+    grouping: Grouping,
+    variable: Variable,
+};
 
 pub const Parser = struct {
     debug: bool,
@@ -21,7 +30,6 @@ pub const Parser = struct {
     pub fn init(tokens: []const Token, alloc: std.mem.Allocator, debug: bool) Parser {
         return Parser{ .tokens = tokens, .current = 0, .alloc = alloc, .debug = debug };
     }
-
     pub fn deinit(self: *Parser) void {
         if (self.expr) |expr| {
             self.printExpr(expr, 0);
@@ -83,6 +91,14 @@ pub const Parser = struct {
                 std.debug.print("Grouping\n", .{});
                 self.printExpr(val.expression.*, indent + 1);
             },
+            .variable => |val| {
+                std.debug.print("Variable\n", .{});
+                i = 0;
+                while (i < indent + 1) : (i += 1) {
+                    std.debug.print("{s}", .{indentStr});
+                }
+                std.debug.print("Name: {s}\n", .{val.name.lexeme});
+            },
         }
     }
 
@@ -117,12 +133,39 @@ pub const Parser = struct {
         std.debug.print("Finished freeing expression\n", .{});
     }
 
-    pub fn parse(self: *Parser) Expr {
+    pub fn parse(self: *Parser) !Stmt {
         if (self.debug) std.debug.print("Starting parsing\n", .{});
-        const expr = self.expression();
-        self.expr = expr;
-        if (self.debug) std.debug.print("Finished parsing\n", .{});
-        return expr;
+        if (self.match(&[_]TokenType{TokenType.PRINT})) {
+            return self.printStatement();
+        } else if (self.match(&[_]TokenType{TokenType.VAR})) {
+            return self.varDeclaration();
+        }
+        return self.expressionStatement();
+    }
+
+    fn printStatement(self: *Parser) !Stmt {
+        var value = self.expression();
+        _ = try self.consume(TokenType.SEMICOLON, "Expect ';' after value.");
+        return Stmt{ .print = &value };
+    }
+
+    fn varDeclaration(self: *Parser) !Stmt {
+        const name = try self.consume(TokenType.IDENTIFIER, "Expect variable name.");
+
+        var initializer: ?*Expr = null;
+        if (self.match(&[_]TokenType{TokenType.EQUAL})) {
+            initializer = try self.alloc.create(Expr);
+            initializer.?.* = self.expression();
+        }
+
+        _ = try self.consume(TokenType.SEMICOLON, "Expect ';' after variable declaration.");
+        return Stmt{ .var_decl = .{ .name = name, .initializer = initializer } };
+    }
+
+    fn expressionStatement(self: *Parser) !Stmt {
+        var expr = self.expression();
+        _ = try self.consume(TokenType.SEMICOLON, "Expect ';' after expression.");
+        return Stmt{ .expression = &expr };
     }
 
     fn isAtEnd(self: *Parser) bool {
